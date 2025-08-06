@@ -497,7 +497,6 @@ public class TaskManagementServiceImpl implements TaskManagementService {
                 .filter(task ->
                 // Tasks that start within the range
                 (task.getStartDate() != null &&
-                        !task.getStartDate().isBefore(startDate) &&
                         !task.getStartDate().isAfter(endDate))
                         ||
                         // OR tasks that started before the range but are still active
