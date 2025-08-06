@@ -24,9 +24,9 @@ import java.util.stream.Collectors;
 @Slf4j
 @RequiredArgsConstructor
 public class TaskManagementServiceImpl implements TaskManagementService {
-    
+
     private final TaskMapper taskMapper;
-    
+
     // In-memory storage
     private final Map<Long, Task> tasks = new ConcurrentHashMap<>();
     private final Map<Long, List<TaskActivity>> taskActivities = new ConcurrentHashMap<>();
@@ -34,9 +34,10 @@ public class TaskManagementServiceImpl implements TaskManagementService {
     private final AtomicLong taskIdGenerator = new AtomicLong(1);
     private final AtomicLong activityIdGenerator = new AtomicLong(1);
     private final AtomicLong commentIdGenerator = new AtomicLong(1);
-    
+
     /**
      * Creates new tasks based on the provided request
+     * 
      * @param request the task creation request containing task details
      * @return list of created task DTOs
      * @throws IllegalArgumentException if request is invalid
@@ -44,9 +45,9 @@ public class TaskManagementServiceImpl implements TaskManagementService {
     @Override
     public List<TaskManagementDto> createTasks(TaskCreateRequest request) {
         log.info("Creating {} tasks", request.getRequests().size());
-        
+
         List<TaskManagementDto> createdTasks = new ArrayList<>();
-        
+
         for (CreateTaskRequest taskRequest : request.getRequests()) {
             Task task = new Task();
             task.setId(taskIdGenerator.getAndIncrement());
@@ -63,23 +64,24 @@ public class TaskManagementServiceImpl implements TaskManagementService {
             task.setUpdatedAt(LocalDateTime.now());
             task.setCreatedBy(taskRequest.getCreatedBy());
             task.setUpdatedBy(taskRequest.getCreatedBy());
-            
+
             tasks.put(task.getId(), task);
-            
+
             // Add creation activity
-            addActivity(task.getId(), "TASK_CREATED", taskRequest.getCreatedBy(), 
-                       "Task created with title: " + task.getTitle());
-            
+            addActivity(task.getId(), "TASK_CREATED", taskRequest.getCreatedBy(),
+                    "Task created with title: " + task.getTitle());
+
             TaskManagementDto dto = taskMapper.toDto(task);
             createdTasks.add(dto);
         }
-        
+
         log.info("Successfully created {} tasks", createdTasks.size());
         return createdTasks;
     }
 
     /**
      * Updates existing tasks with new information
+     * 
      * @param request the update request containing task modifications
      * @return updated task DTO
      * @throws ResourceNotFoundException if task not found
@@ -104,13 +106,13 @@ public class TaskManagementServiceImpl implements TaskManagementService {
             TaskStatus oldStatus = task.getStatus();
             task.setStatus(request.getStatus());
             addActivity(task.getId(), "STATUS_CHANGED", request.getUpdatedBy(),
-                       "Status changed from " + oldStatus + " to " + request.getStatus());
+                    "Status changed from " + oldStatus + " to " + request.getStatus());
         }
         if (request.getPriority() != null) {
             Priority oldPriority = task.getPriority();
             task.setPriority(request.getPriority());
             addActivity(task.getId(), "PRIORITY_CHANGED", request.getUpdatedBy(),
-                       "Priority changed from " + oldPriority + " to " + request.getPriority());
+                    "Priority changed from " + oldPriority + " to " + request.getPriority());
         }
         if (request.getStartDate() != null) {
             task.setStartDate(request.getStartDate());
@@ -123,7 +125,7 @@ public class TaskManagementServiceImpl implements TaskManagementService {
             task.setAssigneeId(request.getAssigneeId());
             task.setAssigneeName(request.getAssigneeName());
             addActivity(task.getId(), "ASSIGNEE_CHANGED", request.getUpdatedBy(),
-                       "Assignee changed from " + oldAssigneeId + " to " + request.getAssigneeId());
+                    "Assignee changed from " + oldAssigneeId + " to " + request.getAssigneeId());
         }
         if (request.getCustomerReference() != null) {
             task.setCustomerReference(request.getCustomerReference());
@@ -140,52 +142,57 @@ public class TaskManagementServiceImpl implements TaskManagementService {
 
     // BUG 1: Task Re-assignment Creates Duplicates
     // BUGGY VERSION - This creates duplicates instead of cancelling old tasks
-
-/*    @Override
-    public String assignByReference(AssignByReferenceRequest request) {
-        log.info("Assigning tasks by reference: {}", request.getCustomerReference());
-
-        // Find tasks with the customer reference
-        List<Task> existingTasks = tasks.values().stream()
-                .filter(task -> request.getCustomerReference().equals(task.getCustomerReference()))
-                .filter(task -> task.getStatus() == TaskStatus.ACTIVE)
-                .collect(Collectors.toList());
-
-        if (existingTasks.isEmpty()) {
-            throw new ResourceNotFoundException("No active tasks found for customer reference: " + request.getCustomerReference());
-        }
-
-        // BUGGY: Create new tasks without cancelling old ones
-        for (Task existingTask : existingTasks) {
-            Task newTask = new Task();
-            newTask.setId(taskIdGenerator.getAndIncrement());
-            newTask.setTitle(existingTask.getTitle());
-            newTask.setDescription(existingTask.getDescription());
-            newTask.setStatus(TaskStatus.ACTIVE);
-            newTask.setPriority(existingTask.getPriority());
-            newTask.setStartDate(existingTask.getStartDate());
-            newTask.setDueDate(existingTask.getDueDate());
-            newTask.setAssigneeId(request.getNewAssigneeId());
-            newTask.setAssigneeName(request.getNewAssigneeName());
-            newTask.setCustomerReference(existingTask.getCustomerReference());
-            newTask.setCreatedAt(LocalDateTime.now());
-            newTask.setUpdatedAt(LocalDateTime.now());
-            newTask.setCreatedBy(existingTask.getCreatedBy());
-            newTask.setUpdatedBy(request.getUpdatedBy());
-
-            tasks.put(newTask.getId(), newTask);
-
-            addActivity(newTask.getId(), "TASK_REASSIGNED", request.getUpdatedBy(),
-                       "Task reassigned from " + existingTask.getAssigneeName() + " to " + request.getNewAssigneeName());
-        }
-
-        return "Tasks reassigned successfully";
-    }
-*/
+    /*
+     * @Override
+     * public String assignByReference(AssignByReferenceRequest request) {
+     * log.info("Assigning tasks by reference: {}", request.getCustomerReference());
+     * 
+     * // Find tasks with the customer reference
+     * List<Task> existingTasks = tasks.values().stream()
+     * .filter(task ->
+     * request.getCustomerReference().equals(task.getCustomerReference()))
+     * .filter(task -> task.getStatus() == TaskStatus.ACTIVE)
+     * .collect(Collectors.toList());
+     * 
+     * if (existingTasks.isEmpty()) {
+     * throw new
+     * ResourceNotFoundException("No active tasks found for customer reference: " +
+     * request.getCustomerReference());
+     * }
+     * 
+     * // BUGGY: Create new tasks without cancelling old ones
+     * for (Task existingTask : existingTasks) {
+     * Task newTask = new Task();
+     * newTask.setId(taskIdGenerator.getAndIncrement());
+     * newTask.setTitle(existingTask.getTitle());
+     * newTask.setDescription(existingTask.getDescription());
+     * newTask.setStatus(TaskStatus.ACTIVE);
+     * newTask.setPriority(existingTask.getPriority());
+     * newTask.setStartDate(existingTask.getStartDate());
+     * newTask.setDueDate(existingTask.getDueDate());
+     * newTask.setAssigneeId(request.getNewAssigneeId());
+     * newTask.setAssigneeName(request.getNewAssigneeName());
+     * newTask.setCustomerReference(existingTask.getCustomerReference());
+     * newTask.setCreatedAt(LocalDateTime.now());
+     * newTask.setUpdatedAt(LocalDateTime.now());
+     * newTask.setCreatedBy(existingTask.getCreatedBy());
+     * newTask.setUpdatedBy(request.getUpdatedBy());
+     * 
+     * tasks.put(newTask.getId(), newTask);
+     * 
+     * addActivity(newTask.getId(), "TASK_REASSIGNED", request.getUpdatedBy(),
+     * "Task reassigned from " + existingTask.getAssigneeName() + " to " +
+     * request.getNewAssigneeName());
+     * }
+     * 
+     * return "Tasks reassigned successfully";
+     * }
+     */
 
     // FIXED VERSION - Properly cancels old tasks when reassigning
     /**
      * Assigns tasks by reference, handling reassignment logic
+     * 
      * @param request the assignment request with reference details
      * @return success message
      * @throws ResourceNotFoundException if reference not found
@@ -201,7 +208,8 @@ public class TaskManagementServiceImpl implements TaskManagementService {
                 .collect(Collectors.toList());
 
         if (existingTasks.isEmpty()) {
-            throw new ResourceNotFoundException("No active tasks found for customer reference: " + request.getCustomerReference());
+            throw new ResourceNotFoundException(
+                    "No active tasks found for customer reference: " + request.getCustomerReference());
         }
 
         // FIXED: Cancel old tasks and create new ones
@@ -213,7 +221,7 @@ public class TaskManagementServiceImpl implements TaskManagementService {
             tasks.put(existingTask.getId(), existingTask);
 
             addActivity(existingTask.getId(), "TASK_CANCELLED", request.getUpdatedBy(),
-                       "Task cancelled due to reassignment");
+                    "Task cancelled due to reassignment");
 
             // Create new task for new assignee
             Task newTask = new Task();
@@ -235,7 +243,7 @@ public class TaskManagementServiceImpl implements TaskManagementService {
             tasks.put(newTask.getId(), newTask);
 
             addActivity(newTask.getId(), "TASK_REASSIGNED", request.getUpdatedBy(),
-                       "Task reassigned from " + existingTask.getAssigneeName() + " to " + request.getNewAssigneeName());
+                    "Task reassigned from " + existingTask.getAssigneeName() + " to " + request.getNewAssigneeName());
         }
 
         return "Tasks reassigned successfully";
@@ -244,33 +252,38 @@ public class TaskManagementServiceImpl implements TaskManagementService {
     // BUG 2: Cancelled Tasks Clutter the View
     // BUGGY VERSION - Returns all tasks including cancelled ones
     /*
-    @Override
-    public List<TaskManagementDto> fetchTasksByDate(TaskFetchByDateRequest request) {
-        log.info("Fetching tasks by date range: {} to {}", request.getStartDate(), request.getEndDate());
-
-        List<Task> filteredTasks = tasks.values().stream()
-                .filter(task -> {
-                    // BUGGY: Include all tasks regardless of status
-                    LocalDate taskStart = task.getStartDate();
-                    return !taskStart.isBefore(request.getStartDate()) && !taskStart.isAfter(request.getEndDate());
-                })
-                .filter(task -> {
-                    if (request.getAssigneeIds() != null && !request.getAssigneeIds().isEmpty()) {
-                        return request.getAssigneeIds().contains(task.getAssigneeId());
-                    }
-                    return true;
-                })
-                .collect(Collectors.toList());
-
-        return filteredTasks.stream()
-                .map(taskMapper::toDto)
-                .collect(Collectors.toList());
-    }
-    */
+     * @Override
+     * public List<TaskManagementDto> fetchTasksByDate(TaskFetchByDateRequest
+     * request) {
+     * log.info("Fetching tasks by date range: {} to {}", request.getStartDate(),
+     * request.getEndDate());
+     * 
+     * List<Task> filteredTasks = tasks.values().stream()
+     * .filter(task -> {
+     * // BUGGY: Include all tasks regardless of status
+     * LocalDate taskStart = task.getStartDate();
+     * return !taskStart.isBefore(request.getStartDate()) &&
+     * !taskStart.isAfter(request.getEndDate());
+     * })
+     * .filter(task -> {
+     * if (request.getAssigneeIds() != null && !request.getAssigneeIds().isEmpty())
+     * {
+     * return request.getAssigneeIds().contains(task.getAssigneeId());
+     * }
+     * return true;
+     * })
+     * .collect(Collectors.toList());
+     * 
+     * return filteredTasks.stream()
+     * .map(taskMapper::toDto)
+     * .collect(Collectors.toList());
+     * }
+     */
 
     // FIXED VERSION - Excludes cancelled tasks and implements smart daily view
     /**
      * Fetches tasks within a specified date range for given assignees
+     * 
      * @param request the date range and assignee filter request
      * @return list of matching task DTOs (excluding cancelled tasks)
      */
@@ -286,10 +299,13 @@ public class TaskManagementServiceImpl implements TaskManagementService {
                         return false;
                     }
 
-                    // Smart daily view: Include tasks that started in range OR are still active from before
+                    // Smart daily view: Include tasks that started in range OR are still active
+                    // from before
                     LocalDate taskStart = task.getStartDate();
-                    boolean startedInRange = !taskStart.isBefore(request.getStartDate()) && !taskStart.isAfter(request.getEndDate());
-                    boolean startedBeforeButStillActive = taskStart.isBefore(request.getStartDate()) && task.getStatus() == TaskStatus.ACTIVE;
+                    boolean startedInRange = !taskStart.isBefore(request.getStartDate())
+                            && !taskStart.isAfter(request.getEndDate());
+                    boolean startedBeforeButStillActive = taskStart.isBefore(request.getStartDate())
+                            && task.getStatus() == TaskStatus.ACTIVE;
 
                     return startedInRange || startedBeforeButStillActive;
                 })
@@ -305,9 +321,10 @@ public class TaskManagementServiceImpl implements TaskManagementService {
                 .map(taskMapper::toDto)
                 .collect(Collectors.toList());
     }
-    
+
     /**
      * Retrieves a single task by its ID with full details including history
+     * 
      * @param id the task identifier
      * @return task DTO if found
      * @throws ResourceNotFoundException if task not found
@@ -344,6 +361,7 @@ public class TaskManagementServiceImpl implements TaskManagementService {
 
     /**
      * Updates task priority
+     * 
      * @param request the priority update request
      * @return updated task DTO
      * @throws ResourceNotFoundException if task not found
@@ -365,7 +383,7 @@ public class TaskManagementServiceImpl implements TaskManagementService {
         tasks.put(task.getId(), task);
 
         addActivity(task.getId(), "PRIORITY_CHANGED", request.getUpdatedBy(),
-                   "Priority changed from " + oldPriority + " to " + request.getPriority());
+                "Priority changed from " + oldPriority + " to " + request.getPriority());
 
         log.info("Successfully updated priority for task ID: {}", task.getId());
         return taskMapper.toDto(task);
@@ -373,6 +391,7 @@ public class TaskManagementServiceImpl implements TaskManagementService {
 
     /**
      * Fetches tasks by priority
+     * 
      * @param priority the priority to filter by
      * @return list of tasks with specified priority
      */
@@ -381,8 +400,8 @@ public class TaskManagementServiceImpl implements TaskManagementService {
         log.info("Fetching tasks with priority: {}", priority);
 
         List<Task> filteredTasks = tasks.values().stream()
-                .filter(task -> task.getPriority() == priority)
-                .filter(task -> task.getStatus() != TaskStatus.CANCELLED) // Exclude cancelled tasks
+                .filter(task -> task.getPriority().equals(priority)) // FIXED
+                .filter(task -> !task.getStatus().equals(TaskStatus.CANCELLED))
                 .collect(Collectors.toList());
 
         return filteredTasks.stream()
@@ -392,6 +411,7 @@ public class TaskManagementServiceImpl implements TaskManagementService {
 
     /**
      * Adds a comment to a task
+     * 
      * @param request the comment request
      * @return updated task DTO with new comment
      * @throws ResourceNotFoundException if task not found
@@ -415,7 +435,7 @@ public class TaskManagementServiceImpl implements TaskManagementService {
         taskComments.computeIfAbsent(request.getTaskId(), k -> new ArrayList<>()).add(comment);
 
         addActivity(request.getTaskId(), "COMMENT_ADDED", request.getCommentedBy(),
-                   "Comment added: " + request.getComment());
+                "Comment added: " + request.getComment());
 
         log.info("Successfully added comment to task ID: {}", request.getTaskId());
         return findTaskById(request.getTaskId());
@@ -423,6 +443,7 @@ public class TaskManagementServiceImpl implements TaskManagementService {
 
     /**
      * Retrieves all tasks without any filters
+     * 
      * @return list of all tasks in the system
      */
     @Override
@@ -438,10 +459,11 @@ public class TaskManagementServiceImpl implements TaskManagementService {
 
     /**
      * Helper method to add activity to task history
-     * @param taskId the task ID
-     * @param action the action performed
+     * 
+     * @param taskId      the task ID
+     * @param action      the action performed
      * @param performedBy who performed the action
-     * @param details additional details
+     * @param details     additional details
      */
     private void addActivity(Long taskId, String action, String performedBy, String details) {
         TaskActivity activity = new TaskActivity();
@@ -454,4 +476,37 @@ public class TaskManagementServiceImpl implements TaskManagementService {
 
         taskActivities.computeIfAbsent(taskId, k -> new ArrayList<>()).add(activity);
     }
+
+    /**
+     * Implementation of the Smart Daily Task View logic.
+     *
+     * Filters the in-memory task store to include:
+     * 1. ACTIVE tasks that started between startDate and endDate (inclusive).
+     * 2. ACTIVE tasks that started before startDate but are still not completed.
+     *
+     * @param startDate the beginning of the date range
+     * @param endDate   the end of the date range
+     * @return list of TaskManagementDto for smart daily view
+     */
+    @Override
+    public List<TaskManagementDto> getSmartDailyTaskView(LocalDate startDate, LocalDate endDate) {
+        log.info("Fetching smart view tasks between {} and {}", startDate, endDate);
+
+        List<Task> smartViewTasks = tasks.values().stream()
+                .filter(task -> task.getStatus() == TaskStatus.ACTIVE)
+                .filter(task ->
+                // Tasks that start within the range
+                (task.getStartDate() != null &&
+                        !task.getStartDate().isBefore(startDate) &&
+                        !task.getStartDate().isAfter(endDate))
+                        ||
+                        // OR tasks that started before the range but are still active
+                        (task.getStartDate() != null && task.getStartDate().isBefore(startDate)))
+                .collect(Collectors.toList());
+
+        return smartViewTasks.stream()
+                .map(taskMapper::toDto)
+                .collect(Collectors.toList());
+    }
+
 }
